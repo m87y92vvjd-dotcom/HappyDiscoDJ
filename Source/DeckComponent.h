@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <juce_gui_extra/juce_gui_extra.h>
 
 class DeckComponent : public juce::Component
@@ -14,7 +15,10 @@ public:
 private:
     juce::Label nameLabel;
     juce::Label statusLabel;
+    juce::Label bpmLabel;
     juce::Slider volumeSlider;
+    juce::Slider bpmSlider;
     juce::TextButton loadButton;
     juce::String deckName;
+    juce::Path waveform;
 };
