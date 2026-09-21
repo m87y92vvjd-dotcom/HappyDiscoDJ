@@ -11,6 +11,7 @@ class MainComponent : public juce::Component, private juce::Timer
 public:
     MainComponent();
     ~MainComponent() override;
+
     void paint(juce::Graphics&) override;
     void resized() override;
 
@@ -19,11 +20,16 @@ private:
     void openTrackForDeck(AudioEngine&, const juce::String&, DeckComponent&);
     void updateCrossfade(float value);
 
-    juce::Label titleLabel, statusLabel;
-    juce::TextButton sessionButton, libraryButton, mixerButton, settingsButton;
-    std::unique_ptr<DeckComponent> leftDeck, rightDeck;
-    std::unique_ptr<AudioEngine> leftEngine, rightEngine;
+    juce::Label titleLabel;
+    juce::Label statusLabel;
+    juce::TextButton sessionButton;
+    juce::TextButton libraryButton;
+    juce::TextButton mixerButton;
+    juce::TextButton settingsButton;
+    std::unique_ptr<DeckComponent> leftDeck;
+    std::unique_ptr<DeckComponent> rightDeck;
+    std::unique_ptr<AudioEngine> leftEngine;
+    std::unique_ptr<AudioEngine> rightEngine;
     std::unique_ptr<MixerComponent> mixer;
     juce::Rectangle<float> glowArea;
-    int pulse = 0;
 };
