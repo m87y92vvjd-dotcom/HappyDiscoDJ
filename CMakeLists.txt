@@ -12,12 +12,10 @@ option(HAPPYDISCO_ENABLE_WARNINGS "Enable extra compiler warnings" ON)
 
 if(HAPPYDISCO_FETCH_JUCE)
     include(FetchContent)
-    FetchContent_Declare(
-        JUCE
+    FetchContent_Declare(JUCE
         GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
         GIT_TAG 8.0.4
-        GIT_SHALLOW TRUE
-    )
+        GIT_SHALLOW TRUE)
     FetchContent_MakeAvailable(JUCE)
 else()
     find_package(JUCE CONFIG REQUIRED)
@@ -33,50 +31,30 @@ juce_add_gui_app(HappyDiscoDJ
     BUNDLE_ID "${APP_BUNDLE_ID}"
     VERSION "${PROJECT_VERSION}"
     NEEDS_MIDI_INPUT TRUE
-    NEEDS_MIDI_OUTPUT TRUE
-)
+    NEEDS_MIDI_OUTPUT TRUE)
 
 juce_generate_juce_header(HappyDiscoDJ)
 
 target_sources(HappyDiscoDJ PRIVATE
     Source/Main.cpp
-    Source/MainComponent.cpp
-    Source/MainComponent.h
-    Source/AudioEngine.cpp
-    Source/AudioEngine.h
-    Source/DeckComponent.cpp
-    Source/DeckComponent.h
-    Source/SplashComponent.cpp
-    Source/SplashComponent.h
-)
+    Source/MainComponent.cpp Source/MainComponent.h
+    Source/AudioEngine.cpp Source/AudioEngine.h
+    Source/DeckComponent.cpp Source/DeckComponent.h
+    Source/MixerComponent.cpp Source/MixerComponent.h
+    Source/SplashComponent.cpp Source/SplashComponent.h)
 
 target_include_directories(HappyDiscoDJ PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
 
 target_compile_definitions(HappyDiscoDJ PRIVATE
-    JUCE_WEB_BROWSER=0
-    JUCE_USE_CURL=0
-    JUCE_DISPLAY_SPLASH_SCREEN=0
-    JUCE_REPORT_APP_USAGE=0
-    JUCE_APPLICATION_NAME_STRING="${APP_NAME}"
-    JUCE_APPLICATION_VERSION_STRING="${PROJECT_VERSION}"
-    NOMINMAX
-    WIN32_LEAN_AND_MEAN
-)
+    JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_DISPLAY_SPLASH_SCREEN=0
+    JUCE_REPORT_APP_USAGE=0 JUCE_APPLICATION_NAME_STRING="${APP_NAME}"
+    JUCE_APPLICATION_VERSION_STRING="${PROJECT_VERSION}" NOMINMAX WIN32_LEAN_AND_MEAN)
 
 target_link_libraries(HappyDiscoDJ PRIVATE
-    juce::juce_audio_utils
-    juce::juce_audio_devices
-    juce::juce_audio_formats
-    juce::juce_audio_processors
-    juce::juce_dsp
-    juce::juce_gui_extra
-    juce::juce_graphics
-    juce::juce_events
-    juce::juce_data_structures
-    juce::juce_core
-    PUBLIC juce::juce_recommended_config_flags
-          juce::juce_recommended_warning_flags
-)
+    juce::juce_audio_utils juce::juce_audio_devices juce::juce_audio_formats
+    juce::juce_audio_processors juce::juce_dsp juce::juce_gui_extra
+    juce::juce_graphics juce::juce_events juce::juce_data_structures juce::juce_core
+    PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
 if(HAPPYDISCO_ENABLE_LTO)
     target_link_libraries(HappyDiscoDJ PUBLIC juce::juce_recommended_lto_flags)
@@ -92,12 +70,10 @@ endif()
 
 if(APPLE)
     set_target_properties(HappyDiscoDJ PROPERTIES
-        MACOSX_BUNDLE TRUE
-        MACOSX_BUNDLE_GUI_IDENTIFIER "${APP_BUNDLE_ID}"
+        MACOSX_BUNDLE TRUE MACOSX_BUNDLE_GUI_IDENTIFIER "${APP_BUNDLE_ID}"
         MACOSX_BUNDLE_BUNDLE_NAME "${APP_NAME}"
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
-    )
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}")
 endif()
 
 include(GNUInstallDirs)
