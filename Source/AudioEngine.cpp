@@ -1,0 +1,70 @@
+#include "AudioEngine.h"
+
+AudioEngine::AudioEngine()
+{
+    formatManager.registerBasicFormats();
+    setAudioChannels(0, 2);
+}
+
+AudioEngine::~AudioEngine()
+{
+    stop();
+    transportSource.setSource(nullptr);
+    readerSource.reset();
+    shutdownAudio();
+}
+
+void AudioEngine::loadFile(const juce::File& file)
+{
+    stop();
+    transportSource.setSource(nullptr);
+    readerSource.reset();
+
+    if (auto* reader = formatManager.createReaderFor(file))
+    {
+        currentTrackName = file.getFileName();
+        auto sampleRate = reader->sampleRate;
+        readerSource.reset(new juce::AudioFormatReaderSource(reader, true));
+        transportSource.setSource(readerSource.get(), 0, nullptr, sampleRate);
+        transportSource.setGain(gain);
+    }
+    else
+    {
+        currentTrackName = "Unsupported file format";
+    }
+}
+
+void AudioEngine::play() { if (readerSource != nullptr) transportSource.start(); }
+void AudioEngine::stop() { transportSource.stop(); }
+bool AudioEngine::isPlaying() const noexcept { return transportSource.isPlaying(); }
+
+void AudioEngine::setGain(float newGain) noexcept
+{
+    gain = juce::jlimit(0.0f, 1.0f, newGain);
+    transportSource.setGain(gain);
+}
+
+double AudioEngine::getCurrentPosition() const { return transportSource.getCurrentPosition(); }
+double AudioEngine::getLengthInSeconds() const { return transportSource.getLengthInSeconds(); }
+juce::String AudioEngine::getTrackName() const { return currentTrackName; }
+
+void AudioEngine::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
+{
+    transportSource.prepareToPlay(samplesPerBlockExpected, sampleRate);
+}
+
+void AudioEngine::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill)
+{
+    if (readerSource == nullptr)
+    {
+        bufferToFill.clearActiveBufferRegion();
+        return;
+    }
+    transportSource.getNextAudioBlock(bufferToFill);
+}
+
+void AudioEngine::releaseResources()
+{
+    transportSource.stop();
+    transportSource.releaseResources();
+}

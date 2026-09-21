@@ -1,94 +1,29 @@
-#include "AudioEngine.h"
+#pragma once
 
-AudioEngine::AudioEngine()
+#include <functional>
+#include <juce_gui_extra/juce_gui_extra.h>
+
+class DeckComponent : public juce::Component
 {
-    formatManager.registerBasicFormats();
-    setAudioChannels(0, 2);
-}
+public:
+    explicit DeckComponent(const juce::String& deckName);
+    ~DeckComponent() override = default;
+    void paint(juce::Graphics&) override;
+    void resized() override;
+    void setLoadCallback(std::function<void()> callback);
+    void setPlayCallback(std::function<void()> callback);
+    void setStopCallback(std::function<void()> callback);
+    void setGainCallback(std::function<void(float)> callback);
+    void setStatusText(const juce::String& text);
+    void setTrackText(const juce::String& text);
 
-AudioEngine::~AudioEngine()
-{
-    stop();
-    shutdownAudio();
-}
-
-void AudioEngine::loadFile(const juce::File& file)
-{
-    stop();
-    readerSource.reset();
-
-    auto reader = formatManager.createReaderFor(file);
-    if (reader == nullptr)
-    {
-        currentTrackName = "Unsupported file format";
-        return;
-    }
-
-    currentTrackName = file.getFileName();
-    readerSource.reset(new juce::AudioFormatReaderSource(reader, true));
-    transportSource.setSource(readerSource.get(), 0, nullptr, reader->sampleRate);
-    transportSource.setGain(gain);
-}
-
-void AudioEngine::play()
-{
-    if (readerSource != nullptr)
-        transportSource.start();
-}
-
-void AudioEngine::stop()
-{
-    transportSource.stop();
-}
-
-bool AudioEngine::isPlaying() const noexcept
-{
-    return transportSource.isPlaying();
-}
-
-void AudioEngine::setGain(float newGain) noexcept
-{
-    gain = juce::jlimit(0.0f, 2.0f, newGain);
-    transportSource.setGain(gain);
-}
-
-double AudioEngine::getCurrentPosition() const
-{
-    return transportSource.getCurrentPosition();
-}
-
-double AudioEngine::getLengthInSeconds() const
-{
-    if (readerSource == nullptr)
-        return 0.0;
-
-    return transportSource.getLengthInSeconds();
-}
-
-juce::String AudioEngine::getTrackName() const
-{
-    return currentTrackName;
-}
-
-void AudioEngine::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
-{
-    transportSource.prepareToPlay(samplesPerBlockExpected, sampleRate);
-}
-
-void AudioEngine::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill)
-{
-    if (readerSource == nullptr)
-    {
-        bufferToFill.buffer->clear();
-        return;
-    }
-
-    transportSource.getNextAudioBlock(bufferToFill);
-    bufferToFill.buffer->applyGain(gain);
-}
-
-void AudioEngine::releaseResources()
-{
-    transportSource.stop();
-    transportSource.releaseResources();
-}
+private:
+    juce::Label nameLabel, statusLabel, trackLabel;
+    juce::Slider volumeSlider, bpmSlider;
+    juce::TextButton loadButton, playButton, stopButton;
+    std::function<void()> onLoad = [] {};
+    std::function<void()> onPlay = [] {};
+    std::function<void()> onStop = [] {};
+    std::function<void(float)> onGain = [] (float) {};
+    juce::Path waveform;
+};

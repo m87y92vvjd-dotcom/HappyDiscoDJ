@@ -15,7 +15,6 @@ public:
     void stop();
     bool isPlaying() const noexcept;
     void setGain(float newGain) noexcept;
-
     double getCurrentPosition() const;
     double getLengthInSeconds() const;
     juce::String getTrackName() const;
@@ -28,6 +27,6 @@ private:
     juce::AudioFormatManager formatManager;
     std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
     juce::AudioTransportSource transportSource;
-    juce::String currentTrackName;
+    juce::String currentTrackName { "No track loaded" };
     float gain = 0.75f;
 };

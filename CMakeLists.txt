@@ -38,63 +38,55 @@ juce_add_gui_app(HappyDiscoDJ
 
 juce_generate_juce_header(HappyDiscoDJ)
 
-target_sources(HappyDiscoDJ
-    PRIVATE
-        Source/Main.cpp
-        Source/MainComponent.cpp
-        Source/MainComponent.h
-        Source/DeckComponent.cpp
-        Source/DeckComponent.h
-        Source/SplashComponent.cpp
-        Source/SplashComponent.h
+target_sources(HappyDiscoDJ PRIVATE
+    Source/Main.cpp
+    Source/MainComponent.cpp
+    Source/MainComponent.h
+    Source/AudioEngine.cpp
+    Source/AudioEngine.h
+    Source/DeckComponent.cpp
+    Source/DeckComponent.h
+    Source/SplashComponent.cpp
+    Source/SplashComponent.h
 )
 
-target_include_directories(HappyDiscoDJ
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/Source
+target_include_directories(HappyDiscoDJ PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
+
+target_compile_definitions(HappyDiscoDJ PRIVATE
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_DISPLAY_SPLASH_SCREEN=0
+    JUCE_REPORT_APP_USAGE=0
+    JUCE_APPLICATION_NAME_STRING="${APP_NAME}"
+    JUCE_APPLICATION_VERSION_STRING="${PROJECT_VERSION}"
+    NOMINMAX
+    WIN32_LEAN_AND_MEAN
 )
 
-target_compile_definitions(HappyDiscoDJ
-    PRIVATE
-        JUCE_WEB_BROWSER=0
-        JUCE_USE_CURL=0
-        JUCE_DISPLAY_SPLASH_SCREEN=0
-        JUCE_REPORT_APP_USAGE=0
-        JUCE_APPLICATION_NAME_STRING="${APP_NAME}"
-        JUCE_APPLICATION_VERSION_STRING="${PROJECT_VERSION}"
-)
-
-target_link_libraries(HappyDiscoDJ
-    PRIVATE
-        juce::juce_audio_utils
-        juce::juce_audio_devices
-        juce::juce_audio_formats
-        juce::juce_audio_processors
-        juce::juce_dsp
-        juce::juce_gui_extra
-        juce::juce_graphics
-        juce::juce_events
-        juce::juce_data_structures
-        juce::juce_core
-    PUBLIC
-        juce::juce_recommended_config_flags
-        juce::juce_recommended_warning_flags
+target_link_libraries(HappyDiscoDJ PRIVATE
+    juce::juce_audio_utils
+    juce::juce_audio_devices
+    juce::juce_audio_formats
+    juce::juce_audio_processors
+    juce::juce_dsp
+    juce::juce_gui_extra
+    juce::juce_graphics
+    juce::juce_events
+    juce::juce_data_structures
+    juce::juce_core
+    PUBLIC juce::juce_recommended_config_flags
+          juce::juce_recommended_warning_flags
 )
 
 if(HAPPYDISCO_ENABLE_LTO)
-    target_link_libraries(HappyDiscoDJ
-        PUBLIC
-            juce::juce_recommended_lto_flags
-    )
+    target_link_libraries(HappyDiscoDJ PUBLIC juce::juce_recommended_lto_flags)
 endif()
 
 if(HAPPYDISCO_ENABLE_WARNINGS)
     if(MSVC)
         target_compile_options(HappyDiscoDJ PRIVATE /W4 /permissive- /EHsc /utf-8)
     else()
-        target_compile_options(HappyDiscoDJ PRIVATE
-            -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wnon-virtual-dtor -Woverloaded-virtual
-        )
+        target_compile_options(HappyDiscoDJ PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
     endif()
 endif()
 
@@ -108,31 +100,19 @@ if(APPLE)
     )
 endif()
 
-set_target_properties(HappyDiscoDJ PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-)
-
 include(GNUInstallDirs)
-include(CPack)
+install(TARGETS HappyDiscoDJ BUNDLE DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 set(CPACK_PACKAGE_NAME "HappyDiscoDJ")
 set(CPACK_PACKAGE_VENDOR "${APP_COMPANY}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Happy Disco DJ desktop application")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "HappyDiscoDJ")
-
 if(WIN32)
     set(CPACK_GENERATOR "NSIS")
     set(CPACK_NSIS_DISPLAY_NAME "${APP_NAME}")
-    set(CPACK_NSIS_PACKAGE_NAME "${APP_NAME}")
 elseif(APPLE)
     set(CPACK_GENERATOR "DragNDrop")
     set(CPACK_DMG_VOLUME_NAME "${APP_NAME}")
 endif()
-
-install(TARGETS HappyDiscoDJ
-    BUNDLE DESTINATION .
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
-
-message(STATUS "Happy Disco DJ configured successfully.")
+include(CPack)
