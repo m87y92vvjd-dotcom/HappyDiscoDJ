@@ -1,119 +1,91 @@
-#include "MainComponent.h"
+#include "DeckComponent.h"
+#include <utility>
 
-MainComponent::MainComponent()
+DeckComponent::DeckComponent(const juce::String& deckName)
 {
-    setSize(1280, 820);
-    setOpaque(true);
-
-    titleLabel.setText("Happy Disco DJ", juce::dontSendNotification);
-    titleLabel.setFont(juce::Font(32.0f, juce::Font::bold));
-    addAndMakeVisible(titleLabel);
-
-    statusLabel.setText("Live session / 2 decks ready", juce::dontSendNotification);
+    nameLabel.setText(deckName, juce::dontSendNotification);
+    nameLabel.setFont(juce::Font(24.0f, juce::Font::bold));
+    addAndMakeVisible(nameLabel);
+    statusLabel.setText("Ready to spin", juce::dontSendNotification);
     addAndMakeVisible(statusLabel);
+    trackLabel.setText("No track loaded", juce::dontSendNotification);
+    addAndMakeVisible(trackLabel);
+    timeLabel.setText("00:00 / 00:00", juce::dontSendNotification);
+    timeLabel.setJustificationType(juce::Justification::centredRight);
+    addAndMakeVisible(timeLabel);
 
-    sessionButton.setButtonText("Session");
-    libraryButton.setButtonText("Library");
-    mixerButton.setButtonText("Mixer");
-    settingsButton.setButtonText("Settings");
-    addAndMakeVisible(sessionButton);
-    addAndMakeVisible(libraryButton);
-    addAndMakeVisible(mixerButton);
-    addAndMakeVisible(settingsButton);
+    volumeSlider.setRange(0.0, 100.0, 0.1);
+    volumeSlider.setValue(68.0);
+    volumeSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 80, 20);
+    volumeSlider.onValueChange = [this] { onGain(static_cast<float>(volumeSlider.getValue() / 100.0)); };
+    addAndMakeVisible(volumeSlider);
 
-    leftEngine = std::make_unique<AudioEngine>();
-    rightEngine = std::make_unique<AudioEngine>();
-    leftDeck = std::make_unique<DeckComponent>("Deck A");
-    rightDeck = std::make_unique<DeckComponent>("Deck B");
-    mixer = std::make_unique<MixerComponent>();
+    bpmSlider.setRange(70.0, 180.0, 0.1);
+    bpmSlider.setValue(128.0);
+    bpmSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 80, 20);
+    addAndMakeVisible(bpmSlider);
 
-    addAndMakeVisible(leftDeck.get());
-    addAndMakeVisible(rightDeck.get());
-    addAndMakeVisible(mixer.get());
-
-    leftDeck->setLoadCallback([this] { openTrackForDeck(*leftEngine, "Deck A", *leftDeck); });
-    rightDeck->setLoadCallback([this] { openTrackForDeck(*rightEngine, "Deck B", *rightDeck); });
-    leftDeck->setPlayCallback([this] { leftEngine->play(); leftDeck->setStatusText("Playing"); });
-    rightDeck->setPlayCallback([this] { rightEngine->play(); rightDeck->setStatusText("Playing"); });
-    leftDeck->setStopCallback([this] { leftEngine->stop(); leftDeck->setStatusText("Stopped"); });
-    rightDeck->setStopCallback([this] { rightEngine->stop(); rightDeck->setStatusText("Stopped"); });
-    leftDeck->setGainCallback([this] (float gain) { leftEngine->setGain(gain); });
-    rightDeck->setGainCallback([this] (float gain) { rightEngine->setGain(gain); });
-
-    mixer->setCrossfadeCallback([this] (float value) { updateCrossfade(value); });
-    mixer->setMasterGainCallback([this] (float value)
+    positionSlider.setRange(0.0, 1.0, 0.001);
+    positionSlider.setValue(0.0, juce::dontSendNotification);
+    positionSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    positionSlider.onValueChange = [this]
     {
-        leftEngine->setGain(value);
-        rightEngine->setGain(value);
-    });
+        if (! positionSlider.isMouseButtonDown())
+            return;
+        onSeek(positionSlider.getValue());
+    };
+    addAndMakeVisible(positionSlider);
 
-    startTimerHz(18);
+    loadButton.setButtonText("Load"); loadButton.onClick = [this] { onLoad(); }; addAndMakeVisible(loadButton);
+    playButton.setButtonText("Play"); playButton.onClick = [this] { onPlay(); }; addAndMakeVisible(playButton);
+    stopButton.setButtonText("Stop"); stopButton.onClick = [this] { onStop(); }; addAndMakeVisible(stopButton);
 }
 
-MainComponent::~MainComponent() = default;
+void DeckComponent::setLoadCallback(std::function<void()> callback) { onLoad = std::move(callback); }
+void DeckComponent::setPlayCallback(std::function<void()> callback) { onPlay = std::move(callback); }
+void DeckComponent::setStopCallback(std::function<void()> callback) { onStop = std::move(callback); }
+void DeckComponent::setGainCallback(std::function<void(float)> callback) { onGain = std::move(callback); }
+void DeckComponent::setSeekCallback(std::function<void(double)> callback) { onSeek = std::move(callback); }
+void DeckComponent::setStatusText(const juce::String& text) { statusLabel.setText(text, juce::dontSendNotification); }
+void DeckComponent::setTrackText(const juce::String& text) { trackLabel.setText(text, juce::dontSendNotification); }
 
-void MainComponent::openTrackForDeck(AudioEngine& engine, const juce::String& deckName, DeckComponent& deck)
+void DeckComponent::setPlayback(double position, double length, float level)
 {
-    juce::FileChooser chooser("Select a track for " + deckName, {}, "*.wav;*.aiff;*.mp3;*.flac;*.ogg");
-    if (chooser.browseForFileToOpen())
-    {
-        auto file = chooser.getResult();
-        engine.loadFile(file);
-        deck.setTrackText(engine.getTrackName());
-        deck.setStatusText("Ready");
-        statusLabel.setText("Loaded: " + engine.getTrackName(), juce::dontSendNotification);
-    }
-}
-
-void MainComponent::updateCrossfade(float value)
-{
-    const auto left = juce::jlimit(0.0f, 1.0f, 0.5f - value * 0.5f);
-    const auto right = juce::jlimit(0.0f, 1.0f, 0.5f + value * 0.5f);
-    leftEngine->setGain(left);
-    rightEngine->setGain(right);
-}
-
-void MainComponent::paint(juce::Graphics& g)
-{
-    g.fillAll(juce::Colour(0xff0d1220));
-    g.setGradientFill(juce::ColourGradient(juce::Colour(0xff101a2e), 0, 0,
-                                             juce::Colour(0xff1d2538),
-                                             static_cast<float>(getWidth()),
-                                             static_cast<float>(getHeight()), false));
-    g.fillRect(getLocalBounds().toFloat());
-    g.setColour(juce::Colour(0xffff7b7b).withAlpha(0.16f));
-    g.fillEllipse(glowArea);
-}
-
-void MainComponent::resized()
-{
-    auto bounds = getLocalBounds().reduced(24);
-    auto top = bounds.removeFromTop(76);
-    titleLabel.setBounds(top.removeFromLeft(300).reduced(8));
-    statusLabel.setBounds(top.removeFromRight(300).reduced(8));
-
-    auto buttons = top;
-    settingsButton.setBounds(buttons.removeFromRight(100).reduced(5, 12));
-    mixerButton.setBounds(buttons.removeFromRight(100).reduced(5, 12));
-    libraryButton.setBounds(buttons.removeFromRight(100).reduced(5, 12));
-    sessionButton.setBounds(buttons.removeFromRight(100).reduced(5, 12));
-
-    auto content = bounds.reduced(8);
-    const auto mixerWidth = juce::jlimit(150, 230, content.getWidth() / 6);
-    auto leftArea = content.removeFromLeft((content.getWidth() - mixerWidth) / 2);
-    auto mixerArea = content.removeFromLeft(mixerWidth);
-    auto rightArea = content;
-
-    leftDeck->setBounds(leftArea.reduced(8));
-    mixer->setBounds(mixerArea.reduced(8));
-    rightDeck->setBounds(rightArea.reduced(8));
-
-    glowArea = juce::Rectangle<float>(getWidth() * 0.38f, getHeight() * 0.22f,
-                                      getWidth() * 0.24f, getHeight() * 0.35f);
-}
-
-void MainComponent::timerCallback()
-{
-    pulse = (pulse + 1) % 360;
+    const auto safeLength = juce::jmax(0.0, length);
+    const auto progress = safeLength > 0.0 ? juce::jlimit(0.0, 1.0, position / safeLength) : 0.0;
+    positionSlider.setValue(progress, juce::dontSendNotification);
+    timeLabel.setText(juce::String::formatted("%02d:%02d / %02d:%02d",
+        static_cast<int>(position) / 60, static_cast<int>(position) % 60,
+        static_cast<int>(safeLength) / 60, static_cast<int>(safeLength) % 60), juce::dontSendNotification);
+    outputLevel = juce::jlimit(0.0f, 1.0f, level);
     repaint();
+}
+
+void DeckComponent::paint(juce::Graphics& g)
+{
+    auto area = getLocalBounds().toFloat();
+    g.setColour(juce::Colour(0xff1c212d)); g.fillRoundedRectangle(area.reduced(6.0f), 20.0f);
+    g.setColour(juce::Colour(0xff2d3745)); g.fillRoundedRectangle(area.reduced(16.0f), 18.0f);
+
+    const auto meter = getLocalBounds().toFloat().withTrimmedLeft(18.0f).withTrimmedRight(18.0f);
+    g.setColour(juce::Colours::black.withAlpha(0.35f)); g.fillRoundedRectangle(meter.withHeight(8.0f).withY(92.0f), 4.0f);
+    g.setColour(juce::Colour(0xff58d68d)); g.fillRoundedRectangle(meter.withWidth(meter.getWidth() * outputLevel).withHeight(8.0f).withY(92.0f), 4.0f);
+    g.setColour(juce::Colours::white.withAlpha(0.16f)); g.drawRoundedRectangle(area.reduced(12.0f), 18.0f, 1.0f);
+}
+
+void DeckComponent::resized()
+{
+    auto area = getLocalBounds().reduced(18);
+    nameLabel.setBounds(area.removeFromTop(34));
+    statusLabel.setBounds(area.removeFromTop(20));
+    trackLabel.setBounds(area.removeFromTop(24));
+    timeLabel.setBounds(area.removeFromTop(20));
+    positionSlider.setBounds(area.removeFromTop(30).reduced(4, 8));
+    auto controls = area.removeFromTop(110);
+    volumeSlider.setBounds(controls.removeFromLeft(controls.getWidth() / 2).reduced(4));
+    bpmSlider.setBounds(controls.reduced(4));
+    auto buttons = area.removeFromTop(44);
+    loadButton.setBounds(buttons.removeFromLeft(90).reduced(4));
+    playButton.setBounds(buttons.removeFromLeft(90).reduced(4));
+    stopButton.setBounds(buttons.removeFromLeft(90).reduced(4));
 }

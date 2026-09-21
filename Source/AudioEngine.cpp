@@ -1,4 +1,5 @@
 #include "AudioEngine.h"
+#include <cmath>
 
 AudioEngine::AudioEngine()
 {
@@ -19,11 +20,12 @@ void AudioEngine::loadFile(const juce::File& file)
     stop();
     transportSource.setSource(nullptr);
     readerSource.reset();
+    outputLevel.store(0.0f);
 
     if (auto* reader = formatManager.createReaderFor(file))
     {
         currentTrackName = file.getFileName();
-        auto sampleRate = reader->sampleRate;
+        const auto sampleRate = reader->sampleRate;
         readerSource.reset(new juce::AudioFormatReaderSource(reader, true));
         transportSource.setSource(readerSource.get(), 0, nullptr, sampleRate);
         transportSource.setGain(gain);
@@ -34,8 +36,18 @@ void AudioEngine::loadFile(const juce::File& file)
     }
 }
 
-void AudioEngine::play() { if (readerSource != nullptr) transportSource.start(); }
-void AudioEngine::stop() { transportSource.stop(); }
+void AudioEngine::play()
+{
+    if (readerSource != nullptr)
+        transportSource.start();
+}
+
+void AudioEngine::stop()
+{
+    transportSource.stop();
+    outputLevel.store(0.0f);
+}
+
 bool AudioEngine::isPlaying() const noexcept { return transportSource.isPlaying(); }
 
 void AudioEngine::setGain(float newGain) noexcept
@@ -44,8 +56,15 @@ void AudioEngine::setGain(float newGain) noexcept
     transportSource.setGain(gain);
 }
 
+void AudioEngine::setPosition(double seconds)
+{
+    if (readerSource != nullptr)
+        transportSource.setPosition(juce::jlimit(0.0, getLengthInSeconds(), seconds));
+}
+
 double AudioEngine::getCurrentPosition() const { return transportSource.getCurrentPosition(); }
 double AudioEngine::getLengthInSeconds() const { return transportSource.getLengthInSeconds(); }
+float AudioEngine::getOutputLevel() const noexcept { return outputLevel.load(); }
 juce::String AudioEngine::getTrackName() const { return currentTrackName; }
 
 void AudioEngine::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
@@ -58,9 +77,15 @@ void AudioEngine::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferTo
     if (readerSource == nullptr)
     {
         bufferToFill.clearActiveBufferRegion();
+        outputLevel.store(0.0f);
         return;
     }
+
     transportSource.getNextAudioBlock(bufferToFill);
+
+    const auto rms = bufferToFill.buffer->getRMSLevel(
+        bufferToFill.startSample, bufferToFill.numSamples);
+    outputLevel.store(juce::jlimit(0.0f, 1.0f, rms * 2.5f));
 }
 
 void AudioEngine::releaseResources()
