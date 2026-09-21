@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <juce_gui_extra/juce_gui_extra.h>
+#include "AudioEngine.h"
 #include "DeckComponent.h"
 
 class MainComponent : public juce::Component,
@@ -16,6 +17,7 @@ public:
 
 private:
     void timerCallback() override;
+    void openTrackForDeck(AudioEngine& engine, const juce::String& deckName, DeckComponent& deck);
 
     juce::Label titleLabel;
     juce::Label statusLabel;
@@ -26,6 +28,8 @@ private:
 
     std::unique_ptr<DeckComponent> leftDeck;
     std::unique_ptr<DeckComponent> rightDeck;
+    std::unique_ptr<AudioEngine> leftEngine;
+    std::unique_ptr<AudioEngine> rightEngine;
 
     juce::Rectangle<float> glowArea;
     int pulse = 0;

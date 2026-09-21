@@ -28,8 +28,21 @@ MainComponent::MainComponent()
     settingsButton.setButtonText("Settings");
     addAndMakeVisible(settingsButton);
 
+    leftEngine = std::make_unique<AudioEngine>();
+    rightEngine = std::make_unique<AudioEngine>();
+
     leftDeck = std::make_unique<DeckComponent>("Deck A");
     rightDeck = std::make_unique<DeckComponent>("Deck B");
+
+    leftDeck->setLoadCallback([this] { openTrackForDeck(*leftEngine, "Deck A", *leftDeck); });
+    rightDeck->setLoadCallback([this] { openTrackForDeck(*rightEngine, "Deck B", *rightDeck); });
+
+    leftDeck->setPlayCallback([this] { leftEngine->play(); leftDeck->setStatusText("Playing"); });
+    rightDeck->setPlayCallback([this] { rightEngine->play(); rightDeck->setStatusText("Playing"); });
+
+    leftDeck->setStopCallback([this] { leftEngine->stop(); leftDeck->setStatusText("Stopped"); });
+    rightDeck->setStopCallback([this] { rightEngine->stop(); rightDeck->setStatusText("Stopped"); });
+
     addAndMakeVisible(leftDeck.get());
     addAndMakeVisible(rightDeck.get());
 
@@ -38,18 +51,33 @@ MainComponent::MainComponent()
 
 MainComponent::~MainComponent() = default;
 
+void MainComponent::openTrackForDeck(AudioEngine& engine, const juce::String& deckName, DeckComponent& deck)
+{
+    juce::FileChooser chooser("Select a track for " + deckName,
+                              juce::File::getSpecialLocation(juce::File::userHomeDirectory),
+                              "*.wav;*.aiff;*.mp3;*.flac;*.ogg");
+
+    if (chooser.browseForFileToOpen())
+    {
+        const auto file = chooser.getResult();
+        engine.loadFile(file);
+        deck.setTrackText(file.getFileName());
+        deck.setStatusText("Ready");
+        statusLabel.setText("Loaded track: " + file.getFileName(), juce::dontSendNotification);
+    }
+}
+
 void MainComponent::paint(juce::Graphics& g)
 {
     g.fillAll(juce::Colour(0xff0d1220));
 
-    auto bg = juce::Rectangle<float>(0.0f, 0.0f, static_cast<float>(getWidth()), static_cast<float>(getHeight()));
     g.setGradientFill(juce::ColourGradient(
         juce::Colour(0xff101a2e),
         0.0f, 0.0f,
         juce::Colour(0xff1d2538),
         static_cast<float>(getWidth()), static_cast<float>(getHeight()),
         false));
-    g.fillRect(bg);
+    g.fillRect(getLocalBounds().toFloat());
 
     g.setColour(juce::Colour(0xffff7b7b).withAlpha(0.20f));
     g.fillEllipse(glowArea);
