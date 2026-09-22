@@ -1,165 +1,96 @@
-#include "MainComponent.h"
+cmake_minimum_required(VERSION 3.22)
 
-MainComponent::MainComponent()
-{
-    setSize(1280, 820);
-    setOpaque(true);
+project(HappyDiscoDJ VERSION 1.0.0 LANGUAGES CXX)
 
-    titleLabel.setText("Happy Disco DJ", juce::dontSendNotification);
-    titleLabel.setFont(juce::Font(32.0f, juce::Font::bold));
-    addAndMakeVisible(titleLabel);
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-    statusLabel.setText("Live session / 2 decks ready", juce::dontSendNotification);
-    addAndMakeVisible(statusLabel);
+option(HAPPYDISCO_FETCH_JUCE "Download JUCE automatically when not provided locally" ON)
+option(HAPPYDISCO_ENABLE_LTO "Enable link-time optimization in release builds" ON)
+option(HAPPYDISCO_ENABLE_WARNINGS "Enable extra compiler warnings" ON)
 
-    sessionButton.setButtonText("Session");
-    libraryButton.setButtonText("Library");
-    mixerButton.setButtonText("Mixer");
-    settingsButton.setButtonText("Settings");
-    addAndMakeVisible(sessionButton);
-    addAndMakeVisible(libraryButton);
-    addAndMakeVisible(mixerButton);
-    addAndMakeVisible(settingsButton);
+if(HAPPYDISCO_FETCH_JUCE)
+    include(FetchContent)
+    FetchContent_Declare(JUCE
+        GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+        GIT_TAG 8.0.4
+        GIT_SHALLOW TRUE)
+    FetchContent_MakeAvailable(JUCE)
+else()
+    find_package(JUCE CONFIG REQUIRED)
+endif()
 
-    leftEngine = std::make_unique<AudioEngine>();
-    rightEngine = std::make_unique<AudioEngine>();
-    leftDeck = std::make_unique<DeckComponent>("Deck A");
-    rightDeck = std::make_unique<DeckComponent>("Deck B");
-    mixer = std::make_unique<MixerComponent>();
+set(APP_NAME "Happy Disco DJ")
+set(APP_COMPANY "Happy Mixer")
+set(APP_BUNDLE_ID "com.happymixer.disco.dj")
 
-    addAndMakeVisible(leftDeck.get());
-    addAndMakeVisible(rightDeck.get());
-    addAndMakeVisible(mixer.get());
+juce_add_gui_app(HappyDiscoDJ
+    PRODUCT_NAME "${APP_NAME}"
+    COMPANY_NAME "${APP_COMPANY}"
+    BUNDLE_ID "${APP_BUNDLE_ID}"
+    VERSION "${PROJECT_VERSION}"
+    NEEDS_MIDI_INPUT TRUE
+    NEEDS_MIDI_OUTPUT TRUE)
 
-    leftDeck->setLoadCallback([this]
-    {
-        openTrackForDeck(*leftEngine, "Deck A", *leftDeck);
-    });
-    rightDeck->setLoadCallback([this]
-    {
-        openTrackForDeck(*rightEngine, "Deck B", *rightDeck);
-    });
+juce_generate_juce_header(HappyDiscoDJ)
 
-    leftDeck->setPlayCallback([this]
-    {
-        leftEngine->play();
-        leftDeck->setStatusText("Playing");
-    });
-    rightDeck->setPlayCallback([this]
-    {
-        rightEngine->play();
-        rightDeck->setStatusText("Playing");
-    });
+target_sources(HappyDiscoDJ PRIVATE
+    Source/Main.cpp
+    Source/MainComponent.cpp Source/MainComponent.h
+    Source/AudioEngine.cpp Source/AudioEngine.h
+    Source/DeckComponent.cpp Source/DeckComponent.h
+    Source/MixerComponent.cpp Source/MixerComponent.h
+    Source/LibraryComponent.cpp Source/LibraryComponent.h
+    Source/SettingsComponent.cpp Source/SettingsComponent.h
+    Source/SplashComponent.cpp Source/SplashComponent.h)
 
-    leftDeck->setStopCallback([this]
-    {
-        leftEngine->stop();
-        leftDeck->setStatusText("Stopped");
-    });
-    rightDeck->setStopCallback([this]
-    {
-        rightEngine->stop();
-        rightDeck->setStatusText("Stopped");
-    });
+target_include_directories(HappyDiscoDJ PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/Source")
 
-    leftDeck->setGainCallback([this] (float gain) { leftEngine->setGain(gain); });
-    rightDeck->setGainCallback([this] (float gain) { rightEngine->setGain(gain); });
-    leftDeck->setSeekCallback([this] (double value)
-    {
-        leftEngine->setPosition(value * leftEngine->getLengthInSeconds());
-    });
-    rightDeck->setSeekCallback([this] (double value)
-    {
-        rightEngine->setPosition(value * rightEngine->getLengthInSeconds());
-    });
+target_compile_definitions(HappyDiscoDJ PRIVATE
+    JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_DISPLAY_SPLASH_SCREEN=0
+    JUCE_REPORT_APP_USAGE=0 JUCE_APPLICATION_NAME_STRING="${APP_NAME}"
+    JUCE_APPLICATION_VERSION_STRING="${PROJECT_VERSION}" NOMINMAX WIN32_LEAN_AND_MEAN)
 
-    mixer->setCrossfadeCallback([this] (float value) { updateCrossfade(value); });
-    mixer->setMasterGainCallback([this] (float value)
-    {
-        leftEngine->setGain(value);
-        rightEngine->setGain(value);
-    });
+target_link_libraries(HappyDiscoDJ PRIVATE
+    juce::juce_audio_utils juce::juce_audio_devices juce::juce_audio_formats
+    juce::juce_audio_processors juce::juce_dsp juce::juce_gui_extra
+    juce::juce_graphics juce::juce_events juce::juce_data_structures juce::juce_core
+    PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
 
-    startTimerHz(30);
-}
+if(HAPPYDISCO_ENABLE_LTO)
+    target_link_libraries(HappyDiscoDJ PUBLIC juce::juce_recommended_lto_flags)
+endif()
 
-MainComponent::~MainComponent() = default;
+if(HAPPYDISCO_ENABLE_WARNINGS)
+    if(MSVC)
+        target_compile_options(HappyDiscoDJ PRIVATE /W4 /permissive- /EHsc /utf-8)
+    else()
+        target_compile_options(HappyDiscoDJ PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
+    endif()
+endif()
 
-void MainComponent::openTrackForDeck(AudioEngine& engine,
-                                     const juce::String& deckName,
-                                     DeckComponent& deck)
-{
-    juce::FileChooser chooser(
-        "Select a track for " + deckName,
-        juce::File::getSpecialLocation(juce::File::userHomeDirectory),
-        "*.wav;*.aiff;*.mp3;*.flac;*.ogg");
+if(APPLE)
+    set_target_properties(HappyDiscoDJ PROPERTIES
+        MACOSX_BUNDLE TRUE MACOSX_BUNDLE_GUI_IDENTIFIER "${APP_BUNDLE_ID}"
+        MACOSX_BUNDLE_BUNDLE_NAME "${APP_NAME}"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}")
+endif()
 
-    if (chooser.browseForFileToOpen())
-    {
-        const auto file = chooser.getResult();
-        engine.loadFile(file);
-        deck.setTrackText(engine.getTrackName());
-        deck.setStatusText("Ready");
-        statusLabel.setText("Loaded: " + engine.getTrackName(), juce::dontSendNotification);
-    }
-}
+include(GNUInstallDirs)
+install(TARGETS HappyDiscoDJ BUNDLE DESTINATION . RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-void MainComponent::updateCrossfade(float value)
-{
-    const auto leftGain = juce::jlimit(0.0f, 1.0f, 0.5f - value * 0.5f);
-    const auto rightGain = juce::jlimit(0.0f, 1.0f, 0.5f + value * 0.5f);
-    leftEngine->setGain(leftGain);
-    rightEngine->setGain(rightGain);
-}
-
-void MainComponent::paint(juce::Graphics& g)
-{
-    g.fillAll(juce::Colour(0xff0d1220));
-    g.setGradientFill(juce::ColourGradient(
-        juce::Colour(0xff101a2e), 0.0f, 0.0f,
-        juce::Colour(0xff1d2538), static_cast<float>(getWidth()),
-        static_cast<float>(getHeight()), false));
-    g.fillRect(getLocalBounds().toFloat());
-
-    g.setColour(juce::Colour(0xffff7b7b).withAlpha(0.16f));
-    g.fillEllipse(glowArea);
-}
-
-void MainComponent::resized()
-{
-    auto bounds = getLocalBounds().reduced(24);
-    auto top = bounds.removeFromTop(76);
-
-    titleLabel.setBounds(top.removeFromLeft(300).reduced(8));
-    statusLabel.setBounds(top.removeFromRight(300).reduced(8));
-
-    auto buttons = top;
-    settingsButton.setBounds(buttons.removeFromRight(100).reduced(5, 12));
-    mixerButton.setBounds(buttons.removeFromRight(100).reduced(5, 12));
-    libraryButton.setBounds(buttons.removeFromRight(100).reduced(5, 12));
-    sessionButton.setBounds(buttons.removeFromRight(100).reduced(5, 12));
-
-    auto content = bounds.reduced(8);
-    const auto mixerWidth = juce::jlimit(150, 230, content.getWidth() / 6);
-    auto leftArea = content.removeFromLeft((content.getWidth() - mixerWidth) / 2);
-    auto mixerArea = content.removeFromLeft(mixerWidth);
-
-    leftDeck->setBounds(leftArea.reduced(8));
-    mixer->setBounds(mixerArea.reduced(8));
-    rightDeck->setBounds(content.reduced(8));
-
-    glowArea = juce::Rectangle<float>(
-        getWidth() * 0.38f, getHeight() * 0.22f,
-        getWidth() * 0.24f, getHeight() * 0.35f);
-}
-
-void MainComponent::timerCallback()
-{
-    leftDeck->setPlayback(leftEngine->getCurrentPosition(),
-                          leftEngine->getLengthInSeconds(),
-                          leftEngine->getOutputLevel());
-    rightDeck->setPlayback(rightEngine->getCurrentPosition(),
-                           rightEngine->getLengthInSeconds(),
-                           rightEngine->getOutputLevel());
-    repaint();
-}
+set(CPACK_PACKAGE_NAME "HappyDiscoDJ")
+set(CPACK_PACKAGE_VENDOR "${APP_COMPANY}")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Happy Disco DJ desktop application")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "HappyDiscoDJ")
+if(WIN32)
+    set(CPACK_GENERATOR "NSIS")
+    set(CPACK_NSIS_DISPLAY_NAME "${APP_NAME}")
+elseif(APPLE)
+    set(CPACK_GENERATOR "DragNDrop")
+    set(CPACK_DMG_VOLUME_NAME "${APP_NAME}")
+endif()
+include(CPack)
