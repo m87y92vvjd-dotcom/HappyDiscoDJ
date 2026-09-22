@@ -1,25 +1,58 @@
-#include "SplashComponent.h"
+#include <juce_gui_extra/juce_gui_extra.h>
+#include "MainComponent.h"
 
-SplashComponent::SplashComponent()
+class HappyDiscoDJApplication : public juce::JUCEApplication
 {
-    splashLabel.setText("Play. Mix. Glow.", juce::dontSendNotification);
-    splashLabel.setJustificationType(juce::Justification::centred);
-    splashLabel.setFont(juce::Font(28.0f, juce::Font::bold));
-    addAndMakeVisible(splashLabel);
-}
+public:
+    HappyDiscoDJApplication() = default;
 
-void SplashComponent::paint(juce::Graphics& g)
-{
-    g.fillAll(juce::Colour(0xff0d1321));
+    const juce::String getName() override { return "Happy Disco DJ"; }
+    const juce::String getApplicationVersion() override { return "1.0.0"; }
+    bool moreThanOneInstanceAllowed() override { return false; }
 
-    g.setColour(juce::Colour(0xffffb703));
-    g.fillEllipse(getLocalBounds().toFloat().reduced(120.0f));
+    void initialise(const juce::String&) override
+    {
+        mainWindow = std::make_unique<MainWindow>(getName());
+    }
 
-    g.setColour(juce::Colours::black);
-    g.drawText("Happy Disco DJ", getLocalBounds(), juce::Justification::centred, true);
-}
+    void shutdown() override
+    {
+        mainWindow = nullptr;
+    }
 
-void SplashComponent::resized()
-{
-    splashLabel.setBounds(getLocalBounds());
-}
+    void systemRequestedQuit() override
+    {
+        quit();
+    }
+
+    void anotherInstanceStarted(const juce::String&) override
+    {
+    }
+
+private:
+    class MainWindow : public juce::DocumentWindow
+    {
+    public:
+        MainWindow(const juce::String& name)
+            : juce::DocumentWindow(
+                name,
+                juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId),
+                juce::DocumentWindow::allButtons)
+        {
+            setUsingNativeTitleBar(true);
+            setContentOwned(new MainComponent(), true);
+            centreWithSize(1100, 720);
+            setResizable(true, true);
+            setVisible(true);
+        }
+
+        void closeButtonPressed() override
+        {
+            juce::JUCEApplication::getInstance()->systemRequestedQuit();
+        }
+    };
+
+    std::unique_ptr<MainWindow> mainWindow;
+};
+
+START_JUCE_APPLICATION(HappyDiscoDJApplication)

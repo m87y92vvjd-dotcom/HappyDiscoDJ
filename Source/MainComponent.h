@@ -19,6 +19,7 @@ private:
     void timerCallback() override;
     void openTrackForDeck(AudioEngine&, const juce::String&, DeckComponent&);
     void updateCrossfade(float value);
+    void updateMasterGain(float value);
 
     juce::Label titleLabel;
     juce::Label statusLabel;
@@ -32,4 +33,7 @@ private:
     std::unique_ptr<AudioEngine> rightEngine;
     std::unique_ptr<MixerComponent> mixer;
     juce::Rectangle<float> glowArea;
+
+    float masterLevel = 0.85f;
+    float crossfadeValue = 0.0f;
 };

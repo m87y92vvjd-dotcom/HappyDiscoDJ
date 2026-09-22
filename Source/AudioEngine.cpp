@@ -1,95 +1,38 @@
-#include "AudioEngine.h"
-#include <cmath>
+#pragma once
 
-AudioEngine::AudioEngine()
+#include <atomic>
+#include <memory>
+#include <juce_audio_devices/juce_audio_devices.h>
+#include <juce_audio_formats/juce_audio_formats.h>
+#include <juce_audio_basics/juce_audio_basics.h>
+
+class AudioEngine : public juce::AudioAppComponent
 {
-    formatManager.registerBasicFormats();
-    setAudioChannels(0, 2);
-}
+public:
+    AudioEngine();
+    ~AudioEngine() override;
 
-AudioEngine::~AudioEngine()
-{
-    stop();
-    transportSource.setSource(nullptr);
-    readerSource.reset();
-    shutdownAudio();
-}
+    void loadFile(const juce::File& file);
+    void play();
+    void stop();
+    bool isPlaying() const noexcept;
+    void setGain(float newGain) noexcept;
+    void setPosition(double seconds);
 
-void AudioEngine::loadFile(const juce::File& file)
-{
-    stop();
-    transportSource.setSource(nullptr);
-    readerSource.reset();
-    outputLevel.store(0.0f);
+    double getCurrentPosition() const;
+    double getLengthInSeconds() const;
+    float getOutputLevel() const noexcept;
+    juce::String getTrackName() const;
 
-    if (auto* reader = formatManager.createReaderFor(file))
-    {
-        currentTrackName = file.getFileName();
-        const auto sampleRate = reader->sampleRate;
-        readerSource.reset(new juce::AudioFormatReaderSource(reader, true));
-        transportSource.setSource(readerSource.get(), 0, nullptr, sampleRate);
-        transportSource.setGain(gain);
-    }
-    else
-    {
-        currentTrackName = "Unsupported file format";
-    }
-}
+    void prepareToPlay(int samplesPerBlockExpected, double sampleRate) override;
+    void getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill) override;
+    void releaseResources() override;
 
-void AudioEngine::play()
-{
-    if (readerSource != nullptr)
-        transportSource.start();
-}
-
-void AudioEngine::stop()
-{
-    transportSource.stop();
-    outputLevel.store(0.0f);
-}
-
-bool AudioEngine::isPlaying() const noexcept { return transportSource.isPlaying(); }
-
-void AudioEngine::setGain(float newGain) noexcept
-{
-    gain = juce::jlimit(0.0f, 1.0f, newGain);
-    transportSource.setGain(gain);
-}
-
-void AudioEngine::setPosition(double seconds)
-{
-    if (readerSource != nullptr)
-        transportSource.setPosition(juce::jlimit(0.0, getLengthInSeconds(), seconds));
-}
-
-double AudioEngine::getCurrentPosition() const { return transportSource.getCurrentPosition(); }
-double AudioEngine::getLengthInSeconds() const { return transportSource.getLengthInSeconds(); }
-float AudioEngine::getOutputLevel() const noexcept { return outputLevel.load(); }
-juce::String AudioEngine::getTrackName() const { return currentTrackName; }
-
-void AudioEngine::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
-{
-    transportSource.prepareToPlay(samplesPerBlockExpected, sampleRate);
-}
-
-void AudioEngine::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill)
-{
-    if (readerSource == nullptr)
-    {
-        bufferToFill.clearActiveBufferRegion();
-        outputLevel.store(0.0f);
-        return;
-    }
-
-    transportSource.getNextAudioBlock(bufferToFill);
-
-    const auto rms = bufferToFill.buffer->getRMSLevel(
-        bufferToFill.startSample, bufferToFill.numSamples);
-    outputLevel.store(juce::jlimit(0.0f, 1.0f, rms * 2.5f));
-}
-
-void AudioEngine::releaseResources()
-{
-    transportSource.stop();
-    transportSource.releaseResources();
-}
+private:
+    juce::AudioFormatManager formatManager;
+    std::unique_ptr<juce::AudioFormatReaderSource> readerSource;
+    juce::AudioTransportSource transportSource;
+    juce::String currentTrackName { "No track loaded" };
+    std::atomic<float> outputLevel { 0.0f };
+    float gain = 0.75f;
+};
